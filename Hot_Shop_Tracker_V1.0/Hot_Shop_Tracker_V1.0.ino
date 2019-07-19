@@ -15,6 +15,9 @@
 #include <avr/dtostrf.h>
 #include <SPI.h>
 
+#include "Auber.h"
+
+
 /////////////////////////
 #include <WiFiNINA.h>
 //#include "arduino_secrets.h" 
@@ -35,6 +38,7 @@ const unsigned long postingInterval = 5000;       // delay between updates, in m
 
 // Initialize the client library
 WiFiClient client;
+Auber auber;
 
 void setup() {
  
@@ -42,6 +46,7 @@ void setup() {
   //while (!Serial); // wait for serial port to connect. Needed for native USB port only
  
   connectToWIFI();
+  auber.setup();
  
 }
 
@@ -235,8 +240,18 @@ void printWifiStatus() {
 //Read sensors value: Temperature, Humidity, Pressure, Lux
 void readSensors()
 {
-  _PID_Data_Process_Value = 42; //ENV.readTemperature();
-  _PID_Data_Set_Value = 43; //ENV.readHumidity();
+  TempReading process = auber.getProcessTemp();
+  _PID_Data_Process_Value = process.value;
+  if (!process.ok) {
+      Serial.println("error! process not ok");
+  }
+
+  TempReading setpoint = auber.getSetpointTemp();
+  _PID_Data_Set_Value = setpoint.value;
+  if (!setpoint.ok) {
+    Serial.println("error! setpoint not ok");
+  }
+
   _Type_K_Thermocouple_Temp = 44; //ENV.readPressure();
   _Current_Transformer = 45; //ENV.readLux();
 }
