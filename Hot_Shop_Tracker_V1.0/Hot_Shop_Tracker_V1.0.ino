@@ -261,20 +261,21 @@ void displayValuesOnSerial()
 {
   Serial.println();
     
-  Serial.print("Temperature = ");
+  Serial.print("PID Process Value = ");
   Serial.print(_PID_Data_Process_Value);
-  Serial.println(" °C");
+  Serial.println("°F");
 
-  Serial.print("Humidity    = ");
+  Serial.print("PID Set Value = ");
   Serial.print(_PID_Data_Set_Value);
-  Serial.println(" %");
+  Serial.println("°F");
 
-  Serial.print("Pressure    = ");
+  Serial.print("Type K TC Value = ");
   Serial.print(_Type_K_Thermocouple_Temp);
-  Serial.println(" kPa");
+  Serial.println("°F");
 
-  Serial.print("Lux     = ");
+  Serial.print("Current Transformer Value = ");
   Serial.println(_Current_Transformer);
+  Serial.println("amps");
 
   Serial.println();
 
