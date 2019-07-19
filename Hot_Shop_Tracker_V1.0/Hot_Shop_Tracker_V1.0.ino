@@ -1,59 +1,55 @@
-/*#include <AdafruitIO.h>
-#include <AdafruitIO_Dashboard.h>
-#include <AdafruitIO_Data.h>
-#include <AdafruitIO_Definitions.h>
-#include <AdafruitIO_Ethernet.h>
-#include <AdafruitIO_Feed.h>
-#include <AdafruitIO_FONA.h>
-#include <AdafruitIO_Group.h>
-#include <AdafruitIO_MQTT.h>
-#include <AdafruitIO_Time.h>
-#include <AdafruitIO_WiFi.h>
-*/
-
+#include <Adafruit_Si7021.h>
 #include <ArduinoJson.h>  
 #include <avr/dtostrf.h>
 #include <SPI.h>
-
 #include "Auber.h"
-
-
-/////////////////////////
 #include <WiFiNINA.h>
-//#include "arduino_secrets.h" 
 
+/////////////////////////// Initialize variables //////////////////////////////////////////////////////
 char ssid[] = "Formlabs Guest";         // your network SSID (name)
 char pass[] = "formguest";         // your network password (use for WPA, or use as key for WEP)
 int status = WL_IDLE_STATUS;
 char server[] = "io.adafruit.com"; // name address for Adafruit IOT Cloud
 
-///////////////////////////
 float _PID_Data_Process_Value = 0;
 float _PID_Data_Set_Value = 0;
 float _Type_K_Thermocouple_Temp = 0;
 float _Current_Transformer = 0;
+float _Ambient_Sensor_Temperature = 0;
+float _Ambient_Sensor_Humidity = 0;
 
 unsigned long lastConnectionTime = 0;              // last time you connected to the server, in milliseconds
 const unsigned long postingInterval = 5000;       // delay between updates, in milliseconds
 
-// Initialize the client library
+///////////////////////////// Initialize client libraries & sensor objects /////////////////////////////
 WiFiClient client;
 Auber auber;
+Adafruit_Si7021 sensor = Adafruit_Si7021();
 
+/////////////////////////// Main Setup function ////////////////////////////////////////////////////////
 void setup() {
  
   Serial.begin(9600);
   //while (!Serial); // wait for serial port to connect. Needed for native USB port only
- 
+
+//initialize Wifi connection and auber connection TODO: Add success & error messages?
   connectToWIFI();
   auber.setup();
+
+//initialize Si7021 sensor connection, return an error if it's not found
+if(sensor.begin()) {
+  Serial.println("Connected to Si7021 sensor");
+}
+else if(!sensor.begin()) {
+    Serial.println("Error! Did not find Si7021 sensor");
+  }
  
 }
 
+////////////////////////// Main Loop Function ///////////////////////////////////////////////////////////
 void loop() {
 
- // if 10 seconds have passed since your last connection,
-  // then connect again and send data:
+ // if 10 seconds have passed since your last connection, then connect again and send data:
   if (millis() - lastConnectionTime > postingInterval) 
   {
     readSensors(); // read sensors
@@ -63,23 +59,75 @@ void loop() {
   
 }
 
+//Read all sensor values
+void readSensors()
+{
+  //PID Process Value (Temperature)
+  TempReading process = auber.getProcessTemp();
+  _PID_Data_Process_Value = process.value;
+  if (!process.ok) {
+      Serial.println("error! process not ok");
+  }
 
-/* 
- * This method makes a HTTP connection to the server and post deread sensor values 
- * to the Adafruit IOT Cloud
- */
+  //PID Set Value (Temperature)
+  TempReading setpoint = auber.getSetpointTemp();
+  _PID_Data_Set_Value = setpoint.value;
+  if (!setpoint.ok) {
+    Serial.println("error! setpoint not ok");
+  } 
 
-void httpRequest() 
+  //*STATIC PLACEHOLDER VALUE* Type K TC (Temperature)
+  _Type_K_Thermocouple_Temp = 44; //ENV.readPressure();
+
+  //*STATIC PLACEHOLDER VALUE* Current Transformer (Current)
+  _Current_Transformer = 45; //ENV.readLux();
+
+  //Si7021 Ambient Sensor (Temperature)
+  _Ambient_Sensor_Temperature = sensor.readTemperature();
+
+  //Si7021 Ambient Sensor (Humidity)
+  _Ambient_Sensor_Humidity = sensor.readHumidity();
+
+}
+
+// Display values on Serial Port
+void displayValuesOnSerial()
+{
+  Serial.println();
+    
+  Serial.print("PID Process Value = ");
+  Serial.print(_PID_Data_Process_Value);
+  Serial.println("°F");
+
+  Serial.print("PID Set Value = ");
+  Serial.print(_PID_Data_Set_Value);
+  Serial.println(" °F");
+
+  Serial.print("Type K TC Value = ");
+  Serial.print(_Type_K_Thermocouple_Temp);
+  Serial.println(" °F");
+
+  Serial.print("Current Transformer Value = ");
+  Serial.println(_Current_Transformer);
+  Serial.println(" amps");
+
+  Serial.print("Ambient Shop Temperature = ");
+  Serial.print(_Ambient_Sensor_Temperature);
+  Serial.println(" °C");
+
+  Serial.print("Ambient Shop Humidity = ");
+  Serial.print(_Ambient_Sensor_Humidity);
+  Serial.println(" %");
+  
+  Serial.println();
+
+void httpRequest() //This method makes a HTTP connection to the server and posts sensor values to the Adafruit IOT Cloud
 {
 
-  
 /*
  * https://io.adafruit.com/api/docs/#operation/createGroupData
- * 
  * POST /{username}/groups/{group_key}/data
- * 
  * JSON:
- * 
 {
   "location": {
     "lat": 0,
@@ -156,30 +204,6 @@ char IO_KEY [] = "9ef249e26b7a4409a97d87560f17ed7c";
 
     // note the time that the connection was made:
     lastConnectionTime = millis();
-
-// Display the HTTP request on the serial monitor:
-Serial.println("HTTP requst: ");
-    Serial.print("POST /api/v2/");
-    Serial.print(IO_USERNAME);
-    Serial.print("/groups/");
-    Serial.print(IO_GROUP);
-    Serial.println("/data HTTP/1.1");
-     
-    Serial.println("Host: io.adafruit.com");  
-    Serial.println("Connection: close");  
-    Serial.print("Content-Length: ");  
-    Serial.println(measureJson(doc));  
-    Serial.println("Content-Type: application/json");
-      
-    Serial.print("X-AIO-Key: ");
-    Serial.println(IO_KEY); 
-    Serial.println();
-
-    
-    Serial.println("JSON data: ");
-    serializeJson(doc, Serial);
-    Serial.println();
-    Serial.println("data sent!");
     
   } else {
     // if you couldn't make a connection:
@@ -236,47 +260,5 @@ void printWifiStatus() {
   Serial.print(rssi);
   Serial.println(" dBm");
 }
-
-//Read sensors value: Temperature, Humidity, Pressure, Lux
-void readSensors()
-{
-  TempReading process = auber.getProcessTemp();
-  _PID_Data_Process_Value = process.value;
-  if (!process.ok) {
-      Serial.println("error! process not ok");
-  }
-
-  TempReading setpoint = auber.getSetpointTemp();
-  _PID_Data_Set_Value = setpoint.value;
-  if (!setpoint.ok) {
-    Serial.println("error! setpoint not ok");
-  }
-
-  _Type_K_Thermocouple_Temp = 44; //ENV.readPressure();
-  _Current_Transformer = 45; //ENV.readLux();
-}
-
-// Display values on Serial Port
-void displayValuesOnSerial()
-{
-  Serial.println();
-    
-  Serial.print("PID Process Value = ");
-  Serial.print(_PID_Data_Process_Value);
-  Serial.println("°F");
-
-  Serial.print("PID Set Value = ");
-  Serial.print(_PID_Data_Set_Value);
-  Serial.println("°F");
-
-  Serial.print("Type K TC Value = ");
-  Serial.print(_Type_K_Thermocouple_Temp);
-  Serial.println("°F");
-
-  Serial.print("Current Transformer Value = ");
-  Serial.println(_Current_Transformer);
-  Serial.println("amps");
-
-  Serial.println();
 
 }
