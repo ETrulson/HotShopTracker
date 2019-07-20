@@ -1,5 +1,6 @@
 #include <Adafruit_Si7021.h>
-#include <ArduinoJson.h>  
+#include <Adafruit_MAX31855.h>
+#include <ArduinoJson.h>
 #include <avr/dtostrf.h>
 #include <SPI.h>
 #include "Auber.h"
@@ -25,6 +26,14 @@ const unsigned long postingInterval = 5000;       // delay between updates, in m
 WiFiClient client;
 Auber auber;
 Adafruit_Si7021 sensor = Adafruit_Si7021();
+
+// Construct the driver for the thermocouple. It will use the SPI bus pins, in
+// addition to your choice of chip-select (CS) pin.
+// On the MKR WiFi1010 board, those are:
+//    MISO: 10
+//    SCK:   9
+const uint8_t THERMOCOUPLE_CS_PIN = 0;
+Adafruit_MAX31855 thermocouple(THERMOCOUPLE_CS_PIN);
 
 /////////////////////////// Main Setup function ////////////////////////////////////////////////////////
 void setup() {
@@ -69,8 +78,8 @@ void readSensors() {
     Serial.println("error! setpoint not ok");
   }
 
-  //*STATIC PLACEHOLDER VALUE* Type K TC (Temperature)
-  _Type_K_Thermocouple_Temp = 44; //ENV.readPressure();
+  //Type K TC (Temperature)
+  _Type_K_Thermocouple_Temp = thermocouple.readCelsius();
 
   //*STATIC PLACEHOLDER VALUE* Current Transformer (Current)
   _Current_Transformer = 45; //ENV.readLux();
