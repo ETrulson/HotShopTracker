@@ -162,9 +162,9 @@ void httpRequest() {
   JsonObject feed2 = feeds.createNestedObject();
   feed2["key"] = "pid-data-set-value";
   feed2["value"] = _PID_Data_Set_Value;
-  //JsonObject feed3 = feeds.createNestedObject();
-  //feed3["key"] = "Type K Temperature";
-  //feed3["value"] = _Type_K_Thermocouple_Temp;
+  JsonObject feed3 = feeds.createNestedObject();
+  feed3["key"] = "type-k-thermocouple";
+  feed3["value"] = _Type_K_Thermocouple_Temp;
   //JsonObject feed4 = feeds.createNestedObject();
   //feed4["key"] = "Current Transformer Current";
   //feed4["value"] = _Current_Transformer;
