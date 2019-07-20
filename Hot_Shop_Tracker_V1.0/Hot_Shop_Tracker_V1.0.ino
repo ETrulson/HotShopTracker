@@ -28,45 +28,38 @@ Adafruit_Si7021 sensor = Adafruit_Si7021();
 
 /////////////////////////// Main Setup function ////////////////////////////////////////////////////////
 void setup() {
- 
   Serial.begin(9600);
   //while (!Serial); // wait for serial port to connect. Needed for native USB port only
 
-//initialize Wifi connection and auber connection TODO: Add success & error messages?
+  //initialize Wifi connection and auber connection TODO: Add success & error messages?
   connectToWIFI();
   auber.setup();
 
-//initialize Si7021 sensor connection, return an error if it's not found
-if(sensor.begin()) {
-  Serial.println("Connected to Si7021 sensor");
-}
-else if(!sensor.begin()) {
+  //initialize Si7021 sensor connection, return an error if it's not found
+  if (sensor.begin()) {
+    Serial.println("Connected to Si7021 sensor");
+  } else if (!sensor.begin()) {
     Serial.println("Error! Did not find Si7021 sensor");
   }
- 
 }
 
 ////////////////////////// Main Loop Function ///////////////////////////////////////////////////////////
 void loop() {
-
- // if 10 seconds have passed since your last connection, then connect again and send data:
-  if (millis() - lastConnectionTime > postingInterval) 
-  {
-    readSensors(); // read sensors
-    displayValuesOnSerial(); //display sensor values on serial
-    httpRequest(); // send data to Cloud
-  }
-  
+  // if 10 seconds have passed since your last connection, then connect again and send data:
+  if (millis() - lastConnectionTime > postingInterval) {
+      readSensors(); // read sensors
+      displayValuesOnSerial(); //display sensor values on serial
+      httpRequest(); // send data to Cloud
+    }
 }
 
-//Read all sensor values
-void readSensors()
-{
+// Read all sensor values
+void readSensors() {
   //PID Process Value (Temperature)
   TempReading process = auber.getProcessTemp();
   _PID_Data_Process_Value = process.value;
   if (!process.ok) {
-      Serial.println("error! process not ok");
+    Serial.println("error! process not ok");
   }
 
   //PID Set Value (Temperature)
@@ -74,7 +67,7 @@ void readSensors()
   _PID_Data_Set_Value = setpoint.value;
   if (!setpoint.ok) {
     Serial.println("error! setpoint not ok");
-  } 
+  }
 
   //*STATIC PLACEHOLDER VALUE* Type K TC (Temperature)
   _Type_K_Thermocouple_Temp = 44; //ENV.readPressure();
@@ -87,12 +80,10 @@ void readSensors()
 
   //Si7021 Ambient Sensor (Humidity)
   _Ambient_Sensor_Humidity = sensor.readHumidity();
-
 }
 
 // Display values on Serial Port
-void displayValuesOnSerial()
-{
+void displayValuesOnSerial() {
   Serial.println();
     
   Serial.print("PID Process Value = ");
@@ -122,33 +113,33 @@ void displayValuesOnSerial()
   Serial.println();
 }
 
-void httpRequest() //This method makes a HTTP connection to the server and posts sensor values to the Adafruit IOT Cloud
-{
-
-/*
- * https://io.adafruit.com/api/docs/#operation/createGroupData
- * POST /{username}/groups/{group_key}/data
- * JSON:
-{
-  "location": {
-    "lat": 0,
-    "lon": 0,
-    "ele": 0
-  },
-  "feeds": [
-    {
-      "key": "string",
-      "value": "string"
-    }
-  ],
-  "created_at": "string"
-}
- */
+// This method makes a HTTP connection to the server and posts sensor values to
+// the Adafruit IOT Cloud
+void httpRequest() {
+  /*
+   * https://io.adafruit.com/api/docs/#operation/createGroupData
+   * POST /{username}/groups/{group_key}/data
+   * JSON:
+   {
+   "location": {
+   "lat": 0,
+   "lon": 0,
+   "ele": 0
+   },
+   "feeds": [
+   {
+   "key": "string",
+   "value": "string"
+   }
+   ],
+   "created_at": "string"
+   }
+  */
 
   const size_t capacity = JSON_ARRAY_SIZE(3) + 3*JSON_OBJECT_SIZE(2) + 2*JSON_OBJECT_SIZE(3) + 130;
   StaticJsonDocument<capacity> doc;
 
-   // Add the "location" object
+  // Add the "location" object
   JsonObject location = doc.createNestedObject("location");
   location["lat"] = 0;
   location["lon"] = 0;
@@ -174,39 +165,37 @@ void httpRequest() //This method makes a HTTP connection to the server and posts
   // This will free the socket on the Nina module
   client.stop();
 
-char IO_USERNAME [] = "ETrulson";
-char IO_GROUP [] = "hotshoptracker";
-char IO_KEY [] = "9ef249e26b7a4409a97d87560f17ed7c";
+  char IO_USERNAME [] = "ETrulson";
+  char IO_GROUP [] = "hotshoptracker";
+  char IO_KEY [] = "9ef249e26b7a4409a97d87560f17ed7c";
 
   Serial.println("\nStarting connection to server...");
-  if (client.connect(server, 80)) 
-  {
-    Serial.println("connected to server");
-    // Make a HTTP request:
-    client.print("POST /api/v2/");
-    client.print(IO_USERNAME);
-    client.print("/groups/");
-    client.print(IO_GROUP);
-    client.println("/data HTTP/1.1");
+  if (client.connect(server, 80)) {
+      Serial.println("connected to server");
+      // Make a HTTP request:
+      client.print("POST /api/v2/");
+      client.print(IO_USERNAME);
+      client.print("/groups/");
+      client.print(IO_GROUP);
+      client.println("/data HTTP/1.1");
      
-    client.println("Host: io.adafruit.com");  
-    client.println("Connection: close");  
-    client.print("Content-Length: ");  
-    client.println(measureJson(doc));  
-    client.println("Content-Type: application/json");
+      client.println("Host: io.adafruit.com");
+      client.println("Connection: close");
+      client.print("Content-Length: ");
+      client.println(measureJson(doc));
+      client.println("Content-Type: application/json");
       
-    client.print("X-AIO-Key: ");
-    client.println(IO_KEY); 
+      client.print("X-AIO-Key: ");
+      client.println(IO_KEY);
 
-    // Terminate headers with a blank line
-    client.println();
-    // Send JSON document in body
-    serializeJson(doc, client);
+      // Terminate headers with a blank line
+      client.println();
+      // Send JSON document in body
+      serializeJson(doc, client);
 
-    // note the time that the connection was made:
-    lastConnectionTime = millis();
-    
-  } else {
+      // note the time that the connection was made:
+      lastConnectionTime = millis();
+    } else {
     // if you couldn't make a connection:
     Serial.println("connection failed!");
   }
@@ -214,9 +203,8 @@ char IO_KEY [] = "9ef249e26b7a4409a97d87560f17ed7c";
   
 }
 
-void connectToWIFI()
-{
-   // check for the WiFi module:
+void connectToWIFI() {
+  // check for the WiFi module:
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("Communication with WiFi module failed!");
     // don't continue
