@@ -1,10 +1,11 @@
 #include <Adafruit_Si7021.h>
 #include <Adafruit_MAX31855.h>
-#include <ArduinoJson.h>
-#include <avr/dtostrf.h>
 #include <SPI.h>
 #include "Auber.h"
 #include <WiFiNINA.h>
+
+#include "Adafruit_MQTT.h"
+#include "Adafruit_MQTT_Client.h"
 
 /////////////////////////// Initialize variables //////////////////////////////////////////////////////
 char ssid[] = "Formlabs Guest";         // your network SSID (name)
@@ -35,6 +36,17 @@ Adafruit_Si7021 sensor = Adafruit_Si7021();
 const uint8_t THERMOCOUPLE_CS_PIN = 0;
 Adafruit_MAX31855 thermocouple(THERMOCOUPLE_CS_PIN);
 
+#define AIO_SERVER      "io.adafruit.com"
+#define AIO_SERVERPORT  1883 // use 8883 for SSL
+#define AIO_USERNAME    "ETrulson"
+#define AIO_KEY "9ef249e26b7a4409a97d87560f17ed7c"
+#define AIO_GROUP       "hotshoptracker"
+
+Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
+Adafruit_MQTT_Publish feed_thermocouple = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/" AIO_GROUP ".type-k-thermocouple");
+Adafruit_MQTT_Publish feed_process_value = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/" AIO_GROUP ".pid-data-process-value");
+Adafruit_MQTT_Publish feed_set_value = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/" AIO_GROUP ".pid-data-set-value");
+
 /////////////////////////// Main Setup function ////////////////////////////////////////////////////////
 void setup() {
   Serial.begin(9600);
@@ -58,7 +70,8 @@ void loop() {
   if (millis() - lastConnectionTime > postingInterval) {
       readSensors(); // read sensors
       displayValuesOnSerial(); //display sensor values on serial
-      httpRequest(); // send data to Cloud
+      connectMQTT();
+      publishMQTT();
     }
 }
 
@@ -122,94 +135,33 @@ void displayValuesOnSerial() {
   Serial.println();
 }
 
-// This method makes a HTTP connection to the server and posts sensor values to
-// the Adafruit IOT Cloud
-void httpRequest() {
-  /*
-   * https://io.adafruit.com/api/docs/#operation/createGroupData
-   * POST /{username}/groups/{group_key}/data
-   * JSON:
-   {
-   "location": {
-   "lat": 0,
-   "lon": 0,
-   "ele": 0
-   },
-   "feeds": [
-   {
-   "key": "string",
-   "value": "string"
-   }
-   ],
-   "created_at": "string"
-   }
-  */
+void publishMQTT() {
+  // TODO check if they were published succesfully? what would we do if they weren't?
+  feed_process_value.publish(_PID_Data_Process_Value);
+  feed_set_value.publish(_PID_Data_Set_Value);
+  feed_thermocouple.publish(_Type_K_Thermocouple_Temp);
 
-  const size_t capacity = JSON_ARRAY_SIZE(3) + 3*JSON_OBJECT_SIZE(2) + 2*JSON_OBJECT_SIZE(3) + 130;
-  StaticJsonDocument<capacity> doc;
+  // note the time that the connection was made:
+  lastConnectionTime = millis();
+}
 
-  // Add the "location" object
-  JsonObject location = doc.createNestedObject("location");
-  location["lat"] = 0;
-  location["lon"] = 0;
-  location["ele"] = 0;
-  
-  // Add the "feeds" array
-  JsonArray feeds = doc.createNestedArray("feeds");
-  JsonObject feed1 = feeds.createNestedObject();
-  feed1["key"] = "pid-data-process-value";
-  feed1["value"] = _PID_Data_Process_Value;
-  JsonObject feed2 = feeds.createNestedObject();
-  feed2["key"] = "pid-data-set-value";
-  feed2["value"] = _PID_Data_Set_Value;
-  JsonObject feed3 = feeds.createNestedObject();
-  feed3["key"] = "type-k-thermocouple";
-  feed3["value"] = _Type_K_Thermocouple_Temp;
-  //JsonObject feed4 = feeds.createNestedObject();
-  //feed4["key"] = "Current Transformer Current";
-  //feed4["value"] = _Current_Transformer;
-
-  
-  // close any connection before send a new request.
-  // This will free the socket on the Nina module
-  client.stop();
-
-  char IO_USERNAME [] = "ETrulson";
-  char IO_GROUP [] = "hotshoptracker";
-  char IO_KEY [] = "9ef249e26b7a4409a97d87560f17ed7c";
-
-  Serial.println("\nStarting connection to server...");
-  if (client.connect(server, 80)) {
-      Serial.println("connected to server");
-      // Make a HTTP request:
-      client.print("POST /api/v2/");
-      client.print(IO_USERNAME);
-      client.print("/groups/");
-      client.print(IO_GROUP);
-      client.println("/data HTTP/1.1");
-     
-      client.println("Host: io.adafruit.com");
-      client.println("Connection: close");
-      client.print("Content-Length: ");
-      client.println(measureJson(doc));
-      client.println("Content-Type: application/json");
-      
-      client.print("X-AIO-Key: ");
-      client.println(IO_KEY);
-
-      // Terminate headers with a blank line
-      client.println();
-      // Send JSON document in body
-      serializeJson(doc, client);
-
-      // note the time that the connection was made:
-      lastConnectionTime = millis();
-    } else {
-    // if you couldn't make a connection:
-    Serial.println("connection failed!");
+// Function to connect and reconnect as necessary to the MQTT server.
+void connectMQTT() {
+  // Stop if already connected.
+  if (mqtt.connected()) {
+    return;
   }
 
-  
+  Serial.print("Connecting to MQTT... ");
+
+  int8_t error_code;
+  while ((error_code = mqtt.connect()) != 0) { // will return 0 if successfull
+    Serial.println(mqtt.connectErrorString(error_code));
+    Serial.println("Retrying MQTT connection in 5 seconds...");
+    mqtt.disconnect();
+    delay(5000);
+  }
+  Serial.println("MQTT connected!");
 }
 
 void connectToWIFI() {
