@@ -120,6 +120,7 @@ void displayValuesOnSerial()
   Serial.println(" %");
   
   Serial.println();
+}
 
 void httpRequest() //This method makes a HTTP connection to the server and posts sensor values to the Adafruit IOT Cloud
 {
@@ -261,4 +262,3 @@ void printWifiStatus() {
   Serial.println(" dBm");
 }
 
-}
